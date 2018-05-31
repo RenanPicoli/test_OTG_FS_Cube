@@ -105,8 +105,9 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USB_DEVICE_Init();
-  /* USER CODE BEGIN 2 */
 
+  /* USER CODE BEGIN 2 */
+  uint8_t msg[]="Hello!\r\n";
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -115,7 +116,8 @@ int main(void)
   {
 
   /* USER CODE END WHILE */
-
+	  CDC_Transmit_FS(msg,8);
+	  HAL_Delay(200);
   /* USER CODE BEGIN 3 */
 
   }
