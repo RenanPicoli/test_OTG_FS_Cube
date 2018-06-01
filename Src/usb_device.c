@@ -102,11 +102,13 @@ void MX_USB_DEVICE_Init(void)
   /* Init Device Library, add supported class and start the library. */
   USBD_Init(&hUsbDeviceFS, &FS_Desc, DEVICE_FS);
 
+
+  //USBD_RegisterClass(&hUsbDeviceFS, &USBD_CDC);
   USBD_RegisterClass(&hUsbDeviceFS, (USBD_ClassTypeDef*) &VIDEO_cb);
 
   //USBD_CDC_RegisterInterface(&hUsbDeviceFS, &USBD_Interface_fops_FS);
-
   USBD_UVC_RegisterInterface(&hUsbDeviceFS, &USBD_Interface_Video_fops_FS);
+
 
   USBD_Start(&hUsbDeviceFS);
 
