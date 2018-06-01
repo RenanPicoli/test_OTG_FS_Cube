@@ -1,10 +1,14 @@
-﻿#include "usbd_video_core.h"
-#include "uvc.h"
-#include "jprocess.h"
+﻿#include "../Inc/usbd_video_core.h"
+
+#include "../Inc/uvc.h"
+//#include "jprocess.h"
+
+//@Pícoli: modificando a biblioteca baixada
+#include "usbd_def.h"
 
 extern uint8_t *read_pointer;
 extern uint16_t last_jpeg_frame_size;
-extern volatile uint8_t jpeg_encode_done;//1 - encode stopped //кодирование закончилось
+extern volatile uint8_t jpeg_encode_done;//1 - encode stopped
 extern volatile uint8_t new_frame_cap_enabled;
 
 /*********************************************
@@ -12,7 +16,7 @@ extern volatile uint8_t new_frame_cap_enabled;
  *********************************************/
 static uint8_t  usbd_video_Init       (void  *pdev, uint8_t cfgidx);
 static uint8_t  usbd_video_DeInit     (void  *pdev, uint8_t cfgidx);
-static uint8_t  usbd_video_Setup      (void  *pdev, USB_SETUP_REQ *req);
+static uint8_t  usbd_video_Setup      (void  *pdev, USBD_SetupReqTypedef *req);
 static uint8_t  usbd_video_EP0_RxReady(void *pdev);
 static uint8_t  usbd_video_DataIn     (void *pdev, uint8_t epnum);
 static uint8_t  usbd_video_DataOut    (void *pdev, uint8_t epnum);
@@ -23,10 +27,10 @@ static uint8_t  usbd_video_IN_Incplt (void  *pdev);
 /*********************************************
    VIDEO Requests management functions
  *********************************************/
-static void VIDEO_Req_GetCurrent(void *pdev, USB_SETUP_REQ *req);
-static void VIDEO_Req_SetCurrent(void *pdev, USB_SETUP_REQ *req);
+static void VIDEO_Req_GetCurrent(void *pdev, USBD_SetupReqTypedef *req);
+static void VIDEO_Req_SetCurrent(void *pdev, USBD_SetupReqTypedef *req);
 static uint8_t  *USBD_video_GetCfgDesc (uint8_t speed, uint16_t *length);
-void VIDEO_Req_GetRes(void *pdev, USB_SETUP_REQ *req);
+void VIDEO_Req_GetRes(void *pdev, USBD_SetupReqTypedef *req);
 
 
 static uint32_t  usbd_video_AltSet = 0;//number of current interface alternative setting
@@ -106,7 +110,7 @@ static uint8_t usbd_video_CfgDesc[] =
 {
   /* Configuration 1 */
   USB_CONFIGUARTION_DESC_SIZE,               // bLength                  9
-  USB_CONFIGURATION_DESCRIPTOR_TYPE,         // bDescriptorType          2
+  USB_DESC_TYPE_CONFIGURATION,         		 // bDescriptorType          2
   WBVAL(USB_VIDEO_DESC_SIZ),
   0x02,                                      // bNumInterfaces           2
   0x01,                                      // bConfigurationValue      1 ID of this configuration
@@ -131,7 +135,7 @@ static uint8_t usbd_video_CfgDesc[] =
   
   /* Standard VC Interface Descriptor  = interface 0 */
   USB_INTERFACE_DESC_SIZE,                   // bLength                  9
-  USB_INTERFACE_DESCRIPTOR_TYPE,             // bDescriptorType          4
+  USB_DESC_TYPE_INTERFACE,             		 // bDescriptorType          4
   USB_UVC_VCIF_NUM,                          // bInterfaceNumber         0 index of this interface (VC)
   0x00,                                      // bAlternateSetting        0 index of this setting
   0x00,                                      // bNumEndpoints            0 no endpoints
@@ -183,7 +187,7 @@ static uint8_t usbd_video_CfgDesc[] =
   /* Standard VS Interface Descriptor  = interface 1 */
   // alternate setting 0 = Zero Bandwidth
   USB_INTERFACE_DESC_SIZE,                   // bLength                  9
-  USB_INTERFACE_DESCRIPTOR_TYPE,             // bDescriptorType          4
+  USB_DESC_TYPE_INTERFACE,            		 // bDescriptorType          4
   USB_UVC_VSIF_NUM,                          // bInterfaceNumber         1 index of this interface
   0x00,                                      // bAlternateSetting        0 index of this setting
   0x00,                                      // bNumEndpoints            0 no EP used
@@ -251,7 +255,7 @@ static uint8_t usbd_video_CfgDesc[] =
   /* Standard VS Interface Descriptor  = interface 1 */
   // alternate setting 1 = operational setting
   USB_INTERFACE_DESC_SIZE,                   // bLength                  9
-  USB_INTERFACE_DESCRIPTOR_TYPE,             // bDescriptorType          4
+  USB_DESC_TYPE_INTERFACE,             // bDescriptorType          4
   USB_UVC_VSIF_NUM,                          // bInterfaceNumber         1 index of this interface
   0x01,                                      // bAlternateSetting        1 index of this setting
   0x01,                                      // bNumEndpoints            1 one EP used
@@ -264,7 +268,7 @@ static uint8_t usbd_video_CfgDesc[] =
   
   /* Standard VS Isochronous Video data Endpoint Descriptor */
   USB_ENDPOINT_DESC_SIZE,                   // bLength                  7
-  USB_ENDPOINT_DESCRIPTOR_TYPE,             // bDescriptorType          5 (ENDPOINT)
+  USB_DESC_TYPE_ENDPOINT,              		// bDescriptorType          5 (ENDPOINT)
   USB_ENDPOINT_IN(1),                       // bEndpointAddress      0x83 EP 3 IN
   USB_ENDPOINT_TYPE_ISOCHRONOUS,            // bmAttributes             1 isochronous transfer type
   WBVAL(VIDEO_PACKET_SIZE),                 // wMaxPacketSize
@@ -282,7 +286,7 @@ static uint8_t  usbd_video_Init (void  *pdev,
   DCD_EP_Open(pdev,
 		      USB_ENDPOINT_IN(1),
 		      VIDEO_PACKET_SIZE,
-                      USB_OTG_EP_ISOC);
+			  USBD_EP_TYPE_ISOC);
 
   /* Initialize the Video Hardware layer */
    
@@ -301,7 +305,7 @@ static uint8_t  usbd_video_DeInit (void  *pdev,
 }
 
 static uint8_t  usbd_video_Setup (void  *pdev, 
-                                  USB_SETUP_REQ *req)
+                                  USBD_SetupReqTypedef *req)
 {
   uint16_t len;
   uint8_t  *pbuf;
@@ -357,10 +361,10 @@ static uint8_t  usbd_video_Setup (void  *pdev,
         usbd_video_AltSet = (uint8_t)(req->wValue);
 
         if (usbd_video_AltSet == 1) {
-        	STM_EVAL_LEDOn(LED5);
+        	//STM_EVAL_LEDOn(LED5);
         	play_status = 1;
         } else {
-        	STM_EVAL_LEDOff(LED5);
+        	//STM_EVAL_LEDOff(LED5);
         	DCD_EP_Flush (pdev,USB_ENDPOINT_IN(1));
         	play_status = 0;
         }
@@ -397,22 +401,21 @@ static uint8_t  usbd_video_DataIn (void *pdev, uint8_t epnum)
   
   static uint8_t packet[VIDEO_PACKET_SIZE];
 
-  static uint8_t tx_enable_flag = 0;//разрешение передачи
+  static uint8_t tx_enable_flag = 0;
 
   DCD_EP_Flush(pdev,USB_ENDPOINT_IN(1));//very important
 
   if (tx_enable_flag) packets_cnt++;
   
-  if (tx_enable_flag == 0)//если передача закончилась//if previous transmission ended
+  if (tx_enable_flag == 0)//if previous transmission ended
   {
-    if (jpeg_encode_done)//если кодирование закончилось//if frame endoding ended
+    if (jpeg_encode_done)//if frame endoding ended
     {
       tx_enable_flag = 1;
-      switch_buffers();//переключить буферы для двойной буферизации//switch double buffering buffers
-      new_frame_cap_enabled = 1;//начать новый захват кадра//start new frame capture
+      switch_buffers();//switch double buffering buffers
+      new_frame_cap_enabled = 1;//start new frame capture
       
       //start of new UVC frame
-      //начало нового кадра UVC
       packets_cnt = 0;
       header[1]^= 1;//toggle bit0 every new frame
       picture_pos = 0;
@@ -438,10 +441,9 @@ static uint8_t  usbd_video_DataIn (void *pdev, uint8_t epnum)
     {
       DCD_EP_Tx (pdev,USB_ENDPOINT_IN(1), (uint8_t*)&packet, (uint32_t)VIDEO_PACKET_SIZE);
     }
-    else if (tx_enable_flag == 1)//только если передача разрешена//only if transmisson enabled
+    else if (tx_enable_flag == 1)//only if transmisson enabled
     {
       //last packet in UVC frame
-      //последний пакет в кадре UVC
       DCD_EP_Tx (pdev,USB_ENDPOINT_IN(1), (uint8_t*)&packet, (uint32_t)last_packet_size);
       tx_enable_flag = 0;//stop TX data
     }
@@ -496,7 +498,7 @@ static uint8_t  usbd_video_IN_Incplt (void  *pdev)
 
 
 //CLASS SPECIFIC REQUEST
-static void VIDEO_Req_GetCurrent(void *pdev, USB_SETUP_REQ *req)
+static void VIDEO_Req_GetCurrent(void *pdev, USBD_SetupReqTypedef *req)
 {  
   /* Send the current mute state */
 
@@ -516,7 +518,7 @@ static void VIDEO_Req_GetCurrent(void *pdev, USB_SETUP_REQ *req)
 }
 
 //PC SEND DATA TO uC
-static void VIDEO_Req_SetCurrent(void *pdev, USB_SETUP_REQ *req)
+static void VIDEO_Req_SetCurrent(void *pdev, USBD_SetupReqTypedef *req)
 { 
 
   if (req->wLength)
@@ -539,7 +541,7 @@ static void VIDEO_Req_SetCurrent(void *pdev, USB_SETUP_REQ *req)
 }
 
 /*
-void VIDEO_Req_GetRes(void *pdev, USB_SETUP_REQ *req)
+void VIDEO_Req_GetRes(void *pdev, USBD_SetupReqTypedef *req)
 {
 
 	USBD_CtlSendData (pdev, &videoProbeControl, 0);

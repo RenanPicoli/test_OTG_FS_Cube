@@ -5,27 +5,30 @@
 #define __USB_VIDEO_CORE_H_
 
 #include "usbd_ioreq.h"
-#include "usbd_req.h"
+
+//@Pícoli: por que incluir req.h e ioreq.h?
+//Modifiquei este arquivo p/ não precisar de req.h
+//#include "usbd_req.h"
 #include "usbd_desc.h"
 
 //UVC 1.0 uses only 26 first bytes
 typedef struct  _VideoControl{
-  u8    bmHint[2];                      // 2
-  u8    bFormatIndex[1];                // 3
-  u8    bFrameIndex[1];                 // 4
-  u8    dwFrameInterval[4];             // 8
-  u8    wKeyFrameRate[2];               // 10
-  u8    wPFrameRate[2];                 // 12
-  u8    wCompQuality[2];                // 14
-  u8    wCompWindowSize[2];             // 16
-  u8    wDelay[2];                      // 18
-  u8    dwMaxVideoFrameSize[4];         // 22
-  u8    dwMaxPayloadTransferSize[4];    // 26
-  u8    dwClockFrequency[4];
-  u8    bmFramingInfo[1];
-  u8    bPreferedVersion[1];
-  u8    bMinVersion[1];
-  u8    bMaxVersion[1];
+  uint8_t    bmHint[2];                      // 2
+  uint8_t    bFormatIndex[1];                // 3
+  uint8_t    bFrameIndex[1];                 // 4
+  uint8_t    dwFrameInterval[4];             // 8
+  uint8_t    wKeyFrameRate[2];               // 10
+  uint8_t    wPFrameRate[2];                 // 12
+  uint8_t    wCompQuality[2];                // 14
+  uint8_t    wCompWindowSize[2];             // 16
+  uint8_t    wDelay[2];                      // 18
+  uint8_t    dwMaxVideoFrameSize[4];         // 22
+  uint8_t    dwMaxPayloadTransferSize[4];    // 26
+  uint8_t    dwClockFrequency[4];
+  uint8_t    bmFramingInfo[1];
+  uint8_t    bPreferedVersion[1];
+  uint8_t    bMinVersion[1];
+  uint8_t    bMaxVersion[1];
 }VideoControl;
 
 #define WBVAL(x) (x & 0xFF),((x >> 8) & 0xFF)

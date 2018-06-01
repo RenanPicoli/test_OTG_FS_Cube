@@ -180,6 +180,32 @@ typedef struct _Device_cb
   
 } USBD_ClassTypeDef;
 
+typedef struct _Video_cb
+{
+  uint8_t  (*Init)         (void *pdev , uint8_t cfgidx);
+  uint8_t  (*DeInit)       (void *pdev , uint8_t cfgidx);
+ /* Control Endpoints*/
+  uint8_t  (*Setup)        (void *pdev , USBD_SetupReqTypedef  *req);
+  uint8_t  (*EP0_TxSent)   (void *pdev );
+  uint8_t  (*EP0_RxReady)  (void *pdev );
+  /* Class Specific Endpoints*/
+  uint8_t  (*DataIn)       (void *pdev , uint8_t epnum);
+  uint8_t  (*DataOut)      (void *pdev , uint8_t epnum);
+  uint8_t  (*SOF)          (void *pdev);
+  uint8_t  (*IsoINIncomplete)  (void *pdev);
+  uint8_t  (*IsoOUTIncomplete)  (void *pdev);
+
+  uint8_t  *(*GetConfigDescriptor)( uint8_t speed , uint16_t *length);
+#ifdef USB_OTG_HS_CORE
+  uint8_t  *(*GetOtherConfigDescriptor)( uint8_t speed , uint16_t *length);
+#endif
+
+#ifdef USB_SUPPORT_USER_STRING_DESC
+  uint8_t  *(*GetUsrStrDescriptor)( uint8_t speed ,uint8_t index,  uint16_t *length);
+#endif
+
+} USBD_Class_cb_TypeDef;
+
 /* Following USB Device Speed */
 typedef enum 
 {
