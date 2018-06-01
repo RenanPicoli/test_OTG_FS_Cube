@@ -179,7 +179,8 @@ typedef struct _Video_Fops
 }VIDEO_FOPS_TypeDef;
 
 
-
+//@Pícoli: para ficar semelhante ao código de CDC
+extern VIDEO_FOPS_TypeDef USBD_Interface_Video_fops_FS;
 
 
 extern USBD_Class_cb_TypeDef  VIDEO_cb;

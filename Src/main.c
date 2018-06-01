@@ -72,6 +72,17 @@ static void MX_GPIO_Init(void);
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
+//volatile uint16_t frame_buffer[LINES_NUMBER][LINE_BUFFER_SIZE];
+//uint8_t *line_proc_pointer = (uint8_t*)&frame_buffer;
+
+//JPEG and USB transmission
+uint16_t last_jpeg_frame_size = 0;
+volatile uint8_t jpeg_encode_done = 0;//1 - encode stopped
+volatile uint8_t new_frame_cap_enabled = 1;//1 - capture and encoding enabled
+
+//CAPTURE
+extern volatile uint8_t capture_enabled;
+extern volatile uint8_t lines_captured;//number of captured lines
 
 /* USER CODE END 0 */
 
@@ -116,8 +127,8 @@ int main(void)
   {
 
   /* USER CODE END WHILE */
-	  CDC_Transmit_FS(msg,8);
-	  HAL_Delay(200);
+	  //CDC_Transmit_FS(msg,8);
+	  //HAL_Delay(200);
   /* USER CODE BEGIN 3 */
 
   }

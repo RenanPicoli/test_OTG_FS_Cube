@@ -55,6 +55,9 @@
 #include "usbd_cdc.h"
 #include "usbd_cdc_if.h"
 
+//@Pícoli: adicionando suporte à classe UVC
+#include "usbd_video_core.h"
+
 /* USER CODE BEGIN Includes */
 
 /* USER CODE END Includes */
@@ -99,9 +102,11 @@ void MX_USB_DEVICE_Init(void)
   /* Init Device Library, add supported class and start the library. */
   USBD_Init(&hUsbDeviceFS, &FS_Desc, DEVICE_FS);
 
-  USBD_RegisterClass(&hUsbDeviceFS, &USBD_CDC);
+  USBD_RegisterClass(&hUsbDeviceFS, (USBD_ClassTypeDef*) &VIDEO_cb);
 
-  USBD_CDC_RegisterInterface(&hUsbDeviceFS, &USBD_Interface_fops_FS);
+  //USBD_CDC_RegisterInterface(&hUsbDeviceFS, &USBD_Interface_fops_FS);
+
+  USBD_UVC_RegisterInterface(&hUsbDeviceFS, &USBD_Interface_Video_fops_FS);
 
   USBD_Start(&hUsbDeviceFS);
 

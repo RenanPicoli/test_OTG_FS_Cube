@@ -1,10 +1,11 @@
 ﻿#include "../Inc/usbd_video_core.h"
 
 #include "../Inc/uvc.h"
-//#include "jprocess.h"
+#include "jprocess.h"
 
 //@Pícoli: modificando a biblioteca baixada
 #include "usbd_def.h"
+#include "stm32f7xx_hal_pcd.h"
 
 extern uint8_t *read_pointer;
 extern uint16_t last_jpeg_frame_size;
@@ -103,7 +104,14 @@ USBD_Class_cb_TypeDef  VIDEO_cb =
 #endif    
 };
 
-
+//@Pícoli: tentando compatibilizar o código da classe UVC com o da classe CDC
+VIDEO_FOPS_TypeDef USBD_Interface_Video_fops_FS =
+{
+  usbd_video_Init,
+  usbd_video_DeInit,
+  VIDEO_Req_SetCurrent,
+  USBD_video_GetCfgDesc
+};
 
 /* USB VIDEO device Configuration Descriptor */
 static uint8_t usbd_video_CfgDesc[] =
@@ -283,7 +291,7 @@ static uint8_t  usbd_video_Init (void  *pdev,
 {  
 
     /* Open EP IN */
-  DCD_EP_Open(pdev,
+  HAL_PCD_EP_Open(pdev,
 		      USB_ENDPOINT_IN(1),
 		      VIDEO_PACKET_SIZE,
 			  USBD_EP_TYPE_ISOC);
@@ -297,7 +305,7 @@ static uint8_t  usbd_video_Init (void  *pdev,
 static uint8_t  usbd_video_DeInit (void  *pdev, 
                                    uint8_t cfgidx)
 { 
-  DCD_EP_Close (pdev , USB_ENDPOINT_IN(1));
+  HAL_PCD_EP_Close (pdev , USB_ENDPOINT_IN(1));
   
   /* DeInitialize the Audio output Hardware layer */
 
@@ -365,7 +373,7 @@ static uint8_t  usbd_video_Setup (void  *pdev,
         	play_status = 1;
         } else {
         	//STM_EVAL_LEDOff(LED5);
-        	DCD_EP_Flush (pdev,USB_ENDPOINT_IN(1));
+        	HAL_PCD_EP_Flush (pdev,USB_ENDPOINT_IN(1));
         	play_status = 0;
         }
       }
@@ -403,7 +411,7 @@ static uint8_t  usbd_video_DataIn (void *pdev, uint8_t epnum)
 
   static uint8_t tx_enable_flag = 0;
 
-  DCD_EP_Flush(pdev,USB_ENDPOINT_IN(1));//very important
+  HAL_PCD_EP_Flush(pdev,USB_ENDPOINT_IN(1));//very important
 
   if (tx_enable_flag) packets_cnt++;
   
@@ -420,8 +428,8 @@ static uint8_t  usbd_video_DataIn (void *pdev, uint8_t epnum)
       header[1]^= 1;//toggle bit0 every new frame
       picture_pos = 0;
       
-      packets_in_frame = (last_jpeg_frame_size/ ((uint16_t)VIDEO_PACKET_SIZE -2))+1;//-2 - без учета заголовка
-      last_packet_size = (last_jpeg_frame_size - ((packets_in_frame-1) * ((uint16_t)VIDEO_PACKET_SIZE-2)) + 2);//+2 - учитывая заголовок
+      packets_in_frame = (last_jpeg_frame_size/ ((uint16_t)VIDEO_PACKET_SIZE -2))+1;
+      last_packet_size = (last_jpeg_frame_size - ((packets_in_frame-1) * ((uint16_t)VIDEO_PACKET_SIZE-2)) + 2);
     }
   }
 
@@ -439,17 +447,17 @@ static uint8_t  usbd_video_DataIn (void *pdev, uint8_t epnum)
   {
     if (packets_cnt< (packets_in_frame - 1))
     {
-      DCD_EP_Tx (pdev,USB_ENDPOINT_IN(1), (uint8_t*)&packet, (uint32_t)VIDEO_PACKET_SIZE);
+      HAL_PCD_EP_Transmit (pdev,USB_ENDPOINT_IN(1), (uint8_t*)&packet, (uint32_t)VIDEO_PACKET_SIZE);
     }
     else if (tx_enable_flag == 1)//only if transmisson enabled
     {
       //last packet in UVC frame
-      DCD_EP_Tx (pdev,USB_ENDPOINT_IN(1), (uint8_t*)&packet, (uint32_t)last_packet_size);
+      HAL_PCD_EP_Transmit (pdev,USB_ENDPOINT_IN(1), (uint8_t*)&packet, (uint32_t)last_packet_size);
       tx_enable_flag = 0;//stop TX data
     }
     else
     {
-      DCD_EP_Tx (pdev,USB_ENDPOINT_IN(1), (uint8_t*)&header, 2);//header only
+      HAL_PCD_EP_Transmit (pdev,USB_ENDPOINT_IN(1), (uint8_t*)&header, 2);//header only
       picture_pos = 0;
     }
   }
@@ -477,8 +485,8 @@ static uint8_t  usbd_video_SOF (void *pdev)
 
   if (play_status == 1)
   {
-	  DCD_EP_Flush(pdev,USB_ENDPOINT_IN(1));
-	  DCD_EP_Tx (pdev,USB_ENDPOINT_IN(1), (uint8_t*)0x0002, 2);//header
+	  HAL_PCD_EP_Flush(pdev,USB_ENDPOINT_IN(1));
+	  HAL_PCD_EP_Transmit (pdev,USB_ENDPOINT_IN(1), (uint8_t*)0x0002, 2);//header
 	  play_status = 2;
   }
   return USBD_OK;
@@ -502,7 +510,7 @@ static void VIDEO_Req_GetCurrent(void *pdev, USBD_SetupReqTypedef *req)
 {  
   /* Send the current mute state */
 
-  DCD_EP_Flush (pdev,USB_ENDPOINT_OUT(0));
+  HAL_PCD_EP_Flush (pdev,USB_ENDPOINT_OUT(0));
 
   if(req->wValue == 256)
   {
@@ -559,4 +567,25 @@ static uint8_t  *USBD_video_GetCfgDesc (uint8_t speed, uint16_t *length)
 {
   *length = sizeof (usbd_video_CfgDesc);
   return usbd_video_CfgDesc;
+}
+
+//@Pícoli: função análoga a USBD_CDC_RegisterInterface
+/**
+* @brief  USBD_UVC_RegisterInterface
+  * @param  pdev: device instance
+  * @param  fops: CD  Interface callback
+  * @retval status
+  */
+uint8_t  USBD_UVC_RegisterInterface  (USBD_HandleTypeDef   *pdev,
+									 VIDEO_FOPS_TypeDef *fops)
+{
+  uint8_t  ret = USBD_FAIL;
+
+  if(fops != NULL)
+  {
+    pdev->pUserData= fops;
+    ret = USBD_OK;
+  }
+
+  return ret;
 }
