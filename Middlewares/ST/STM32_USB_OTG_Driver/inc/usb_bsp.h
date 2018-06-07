@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
-  * @file    usbd_core.h
+  * @file    usb_bsp.h
   * @author  MCD Application Team
-  * @version V1.1.0
+  * @version V2.1.0
   * @date    19-March-2012
-  * @brief   Header file for usbd_core.c
+  * @brief   Specific api's relative to the used hardware platform
   ******************************************************************************
   * @attention
   *
@@ -23,98 +23,81 @@
   * limitations under the License.
   *
   ******************************************************************************
-  */ 
+  */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __USBD_CORE_H
-#define __USBD_CORE_H
+#ifndef __USB_BSP__H__
+#define __USB_BSP__H__
 
 /* Includes ------------------------------------------------------------------*/
-#include "usb_dcd.h"
-#include "usbd_def.h"
-#include "usbd_conf.h"
+#include "usb_core.h"
+#include "usb_conf.h"
 
-/** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
+/** @addtogroup USB_OTG_DRIVER
   * @{
   */
   
-/** @defgroup USBD_CORE
-  * @brief This file is the Header file for usbd_core.c file
+/** @defgroup USB_BSP
+  * @brief This file is the 
   * @{
   */ 
 
 
-/** @defgroup USBD_CORE_Exported_Defines
+/** @defgroup USB_BSP_Exported_Defines
   * @{
   */ 
-
-typedef enum {
-  USBD_OK   = 0,
-  USBD_BUSY,
-  USBD_FAIL,
-}USBD_Status;
 /**
   * @}
   */ 
 
 
-/** @defgroup USBD_CORE_Exported_TypesDefinitions
+/** @defgroup USB_BSP_Exported_Types
   * @{
-  */
- 
-
+  */ 
 /**
   * @}
   */ 
 
 
-
-/** @defgroup USBD_CORE_Exported_Macros
+/** @defgroup USB_BSP_Exported_Macros
   * @{
   */ 
-
 /**
   * @}
   */ 
 
-/** @defgroup USBD_CORE_Exported_Variables
+/** @defgroup USB_BSP_Exported_Variables
   * @{
   */ 
-
 /**
   * @}
   */ 
 
-/** @defgroup USBD_CORE_Exported_FunctionsPrototype
+/** @defgroup USB_BSP_Exported_FunctionsPrototype
   * @{
   */ 
-void USBD_Init(USB_OTG_CORE_HANDLE *pdev,
-               USB_OTG_CORE_ID_TypeDef coreID, 
-               USBD_DEVICE *pDevice,                  
-               USBD_Class_cb_TypeDef *class_cb, 
-               USBD_Usr_cb_TypeDef *usr_cb);
+void BSP_Init(void);
 
-USBD_Status USBD_DeInit(USB_OTG_CORE_HANDLE *pdev);
-
-USBD_Status USBD_ClrCfg(USB_OTG_CORE_HANDLE  *pdev, uint8_t cfgidx);
-
-USBD_Status USBD_SetCfg(USB_OTG_CORE_HANDLE  *pdev, uint8_t cfgidx);
-
+void USB_OTG_BSP_Init (USB_OTG_CORE_HANDLE *pdev);
+void USB_OTG_BSP_uDelay (const uint32_t usec);
+void USB_OTG_BSP_mDelay (const uint32_t msec);
+void USB_OTG_BSP_EnableInterrupt (USB_OTG_CORE_HANDLE *pdev);
+#ifdef USE_HOST_MODE
+void USB_OTG_BSP_ConfigVBUS(USB_OTG_CORE_HANDLE *pdev);
+void USB_OTG_BSP_DriveVBUS(USB_OTG_CORE_HANDLE *pdev,uint8_t state);
+#endif
 /**
   * @}
   */ 
 
-#endif /* __USBD_CORE_H */
+#endif //__USB_BSP__H__
 
 /**
   * @}
   */ 
 
 /**
-* @}
-*/ 
-
+  * @}
+  */ 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
-
-
 

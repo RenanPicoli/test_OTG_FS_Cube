@@ -2,11 +2,13 @@
   ******************************************************************************
   * @file    usbd_core.c
   * @author  MCD Application Team
+  * @version V1.1.0
+  * @date    19-March-2012
   * @brief   This file provides all the USBD core functions.
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; COPYRIGHT 2015 STMicroelectronics</center></h2>
+  * <h2><center>&copy; COPYRIGHT 2012 STMicroelectronics</center></h2>
   *
   * Licensed under MCD-ST Liberty SW License Agreement V2, (the "License");
   * You may not use this file except in compliance with the License.
@@ -25,8 +27,12 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_core.h"
+#include "usbd_req.h"
+#include "usbd_ioreq.h"
+#include "usb_dcd_int.h"
+#include "usb_bsp.h"
 
-/** @addtogroup STM32_USBD_DEVICE_LIBRARY
+/** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
 * @{
 */
 
@@ -66,7 +72,20 @@
 /** @defgroup USBD_CORE_Private_FunctionPrototypes
 * @{
 */ 
-
+static uint8_t USBD_SetupStage(USB_OTG_CORE_HANDLE *pdev);
+static uint8_t USBD_DataOutStage(USB_OTG_CORE_HANDLE *pdev , uint8_t epnum);
+static uint8_t USBD_DataInStage(USB_OTG_CORE_HANDLE *pdev , uint8_t epnum);
+static uint8_t USBD_SOF(USB_OTG_CORE_HANDLE  *pdev);
+static uint8_t USBD_Reset(USB_OTG_CORE_HANDLE  *pdev);
+static uint8_t USBD_Suspend(USB_OTG_CORE_HANDLE  *pdev);
+static uint8_t USBD_Resume(USB_OTG_CORE_HANDLE  *pdev);
+#ifdef VBUS_SENSING_ENABLED
+static uint8_t USBD_DevConnected(USB_OTG_CORE_HANDLE  *pdev);
+static uint8_t USBD_DevDisconnected(USB_OTG_CORE_HANDLE  *pdev);
+#endif
+static uint8_t USBD_IsoINIncomplete(USB_OTG_CORE_HANDLE  *pdev);
+static uint8_t USBD_IsoOUTIncomplete(USB_OTG_CORE_HANDLE  *pdev);
+static uint8_t  USBD_RunTestMode (USB_OTG_CORE_HANDLE  *pdev) ;
 /**
 * @}
 */ 
@@ -75,6 +94,26 @@
 * @{
 */ 
 
+__IO USB_OTG_DCTL_TypeDef SET_TEST_MODE;
+
+USBD_DCD_INT_cb_TypeDef USBD_DCD_INT_cb = 
+{
+  USBD_DataOutStage,
+  USBD_DataInStage,
+  USBD_SetupStage,
+  USBD_SOF,
+  USBD_Reset,
+  USBD_Suspend,
+  USBD_Resume,
+  USBD_IsoINIncomplete,
+  USBD_IsoOUTIncomplete,
+#ifdef VBUS_SENSING_ENABLED
+USBD_DevConnected, 
+USBD_DevDisconnected,    
+#endif  
+};
+
+USBD_DCD_INT_cb_TypeDef  *USBD_DCD_INT_fops = &USBD_DCD_INT_cb;
 /**
 * @}
 */ 
@@ -85,40 +124,37 @@
 
 /**
 * @brief  USBD_Init
-*         Initializes the device stack and load the class driver
+*         Initailizes the device stack and load the class driver
 * @param  pdev: device instance
-* @param  pdesc: Descriptor structure address
-* @param  id: Low level core index
+* @param  core_address: USB OTG core ID
+* @param  class_cb: Class callback structure address
+* @param  usr_cb: User callback structure address
 * @retval None
 */
-USBD_StatusTypeDef USBD_Init(USBD_HandleTypeDef *pdev, USBD_DescriptorsTypeDef *pdesc, uint8_t id)
+void USBD_Init(USB_OTG_CORE_HANDLE *pdev,
+               USB_OTG_CORE_ID_TypeDef coreID,
+               USBD_DEVICE *pDevice,                  
+               USBD_Class_cb_TypeDef *class_cb, 
+               USBD_Usr_cb_TypeDef *usr_cb)
 {
-  /* Check whether the USB Host handle is valid */
-  if(pdev == NULL)
-  {
-    USBD_ErrLog("Invalid Device handle");
-    return USBD_FAIL; 
-  }
+  /* Hardware Init */
+  USB_OTG_BSP_Init(pdev);  
   
-  /* Unlink previous class*/
-  if(pdev->pClass != NULL)
-  {
-    pdev->pClass = NULL;
-  }
+  USBD_DeInit(pdev);
   
-  /* Assign USBD Descriptors */
-  if(pdesc != NULL)
-  {
-    pdev->pDesc = pdesc;
-  }
+  /*Register class and user callbacks */
+  pdev->dev.class_cb = class_cb;
+  pdev->dev.usr_cb = usr_cb;  
+  pdev->dev.usr_device = pDevice;    
   
-  /* Set Device initial State */
-  pdev->dev_state  = USBD_STATE_DEFAULT;
-  pdev->id = id;
-  /* Initialize low level driver */
-  USBD_LL_Init(pdev);
+  /* set USB OTG core params */
+  DCD_Init(pdev , coreID);
   
-  return USBD_OK; 
+  /* Upon Init call usr callback */
+  pdev->dev.usr_cb->Init();
+  
+  /* Enable Interrupts */
+  USB_OTG_BSP_EnableInterrupt(pdev);
 }
 
 /**
@@ -127,130 +163,12 @@ USBD_StatusTypeDef USBD_Init(USBD_HandleTypeDef *pdev, USBD_DescriptorsTypeDef *
 * @param  pdev: device instance
 * @retval status: status
 */
-USBD_StatusTypeDef USBD_DeInit(USBD_HandleTypeDef *pdev)
+USBD_Status USBD_DeInit(USB_OTG_CORE_HANDLE *pdev)
 {
-  /* Set Default State */
-  pdev->dev_state  = USBD_STATE_DEFAULT;
-  
-  /* Free Class Resources */
-  pdev->pClass->DeInit(pdev, pdev->dev_config);  
-  
-    /* Stop the low level driver  */
-  USBD_LL_Stop(pdev); 
-  
-  /* Initialize low level driver */
-  USBD_LL_DeInit(pdev);
+  /* Software Init */
   
   return USBD_OK;
 }
-
-
-/**
-  * @brief  USBD_RegisterClass 
-  *         Link class driver to Device Core.
-  * @param  pDevice : Device Handle
-  * @param  pclass: Class handle
-  * @retval USBD Status
-  */
-USBD_StatusTypeDef  USBD_RegisterClass(USBD_HandleTypeDef *pdev, USBD_ClassTypeDef *pclass)
-{
-  USBD_StatusTypeDef   status = USBD_OK;
-  if(pclass != 0)
-  {
-    /* link the class to the USB Device handle */
-    pdev->pClass = pclass;
-    status = USBD_OK;
-  }
-  else
-  {
-    USBD_ErrLog("Invalid Class handle");
-    status = USBD_FAIL; 
-  }
-  
-  return status;
-}
-
-/**
-  * @brief  USBD_Start 
-  *         Start the USB Device Core.
-  * @param  pdev: Device Handle
-  * @retval USBD Status
-  */
-USBD_StatusTypeDef  USBD_Start  (USBD_HandleTypeDef *pdev)
-{
-  
-  /* Start the low level driver  */
-  USBD_LL_Start(pdev); 
-  
-  return USBD_OK;  
-}
-
-/**
-  * @brief  USBD_Stop 
-  *         Stop the USB Device Core.
-  * @param  pdev: Device Handle
-  * @retval USBD Status
-  */
-USBD_StatusTypeDef  USBD_Stop   (USBD_HandleTypeDef *pdev)
-{
-  /* Free Class Resources */
-  pdev->pClass->DeInit(pdev, pdev->dev_config);  
-
-  /* Stop the low level driver  */
-  USBD_LL_Stop(pdev); 
-  
-  return USBD_OK;  
-}
-
-/**
-* @brief  USBD_RunTestMode 
-*         Launch test mode process
-* @param  pdev: device instance
-* @retval status
-*/
-USBD_StatusTypeDef  USBD_RunTestMode (USBD_HandleTypeDef  *pdev) 
-{
-  return USBD_OK;
-}
-
-
-/**
-* @brief  USBD_SetClassConfig 
-*        Configure device and start the interface
-* @param  pdev: device instance
-* @param  cfgidx: configuration index
-* @retval status
-*/
-
-USBD_StatusTypeDef USBD_SetClassConfig(USBD_HandleTypeDef  *pdev, uint8_t cfgidx)
-{
-  USBD_StatusTypeDef   ret = USBD_FAIL;
-  
-  if(pdev->pClass != NULL)
-  {
-    /* Set configuration  and Start the Class*/
-    if(pdev->pClass->Init(pdev, cfgidx) == 0)
-    {
-      ret = USBD_OK;
-    }
-  }
-  return ret; 
-}
-
-/**
-* @brief  USBD_ClrClassConfig 
-*         Clear current configuration
-* @param  pdev: device instance
-* @param  cfgidx: configuration index
-* @retval status: USBD_StatusTypeDef
-*/
-USBD_StatusTypeDef USBD_ClrClassConfig(USBD_HandleTypeDef  *pdev, uint8_t cfgidx)
-{
-  /* Clear configuration  and De-initialize the Class process*/
-  pdev->pClass->DeInit(pdev, cfgidx);  
-  return USBD_OK;
-}
-
 
 /**
 * @brief  USBD_SetupStage 
@@ -258,75 +176,77 @@ USBD_StatusTypeDef USBD_ClrClassConfig(USBD_HandleTypeDef  *pdev, uint8_t cfgidx
 * @param  pdev: device instance
 * @retval status
 */
-USBD_StatusTypeDef USBD_LL_SetupStage(USBD_HandleTypeDef *pdev, uint8_t *psetup)
+static uint8_t USBD_SetupStage(USB_OTG_CORE_HANDLE *pdev)
 {
-
-  USBD_ParseSetupRequest(&pdev->request, psetup);
+  USB_SETUP_REQ req;
   
-  pdev->ep0_state = USBD_EP0_SETUP;
-  pdev->ep0_data_len = pdev->request.wLength;
+  USBD_ParseSetupRequest(pdev , &req);
   
-  switch (pdev->request.bmRequest & 0x1F) 
+  switch (req.bmRequest & 0x1F) 
   {
   case USB_REQ_RECIPIENT_DEVICE:   
-    USBD_StdDevReq (pdev, &pdev->request);
+    USBD_StdDevReq (pdev, &req);
     break;
     
   case USB_REQ_RECIPIENT_INTERFACE:     
-    USBD_StdItfReq(pdev, &pdev->request);
+    USBD_StdItfReq(pdev, &req);
     break;
     
   case USB_REQ_RECIPIENT_ENDPOINT:        
-    USBD_StdEPReq(pdev, &pdev->request);   
+    USBD_StdEPReq(pdev, &req);   
     break;
     
   default:           
-    USBD_LL_StallEP(pdev , pdev->request.bmRequest & 0x80);
+    DCD_EP_Stall(pdev , req.bmRequest & 0x80);
     break;
   }  
-  return USBD_OK;  
+  return USBD_OK;
 }
 
 /**
 * @brief  USBD_DataOutStage 
-*         Handle data OUT stage
+*         Handle data out stage
 * @param  pdev: device instance
 * @param  epnum: endpoint index
 * @retval status
 */
-USBD_StatusTypeDef USBD_LL_DataOutStage(USBD_HandleTypeDef *pdev , uint8_t epnum, uint8_t *pdata)
+static uint8_t USBD_DataOutStage(USB_OTG_CORE_HANDLE *pdev , uint8_t epnum)
 {
-  USBD_EndpointTypeDef    *pep;
+  USB_OTG_EP *ep;
   
   if(epnum == 0) 
   {
-    pep = &pdev->ep_out[0];
-    
-    if ( pdev->ep0_state == USBD_EP0_DATA_OUT)
+    ep = &pdev->dev.out_ep[0];
+    if ( pdev->dev.device_state == USB_OTG_EP0_DATA_OUT)
     {
-      if(pep->rem_length > pep->maxpacket)
+      if(ep->rem_data_len > ep->maxpacket)
       {
-        pep->rem_length -=  pep->maxpacket;
-       
+        ep->rem_data_len -=  ep->maxpacket;
+        
+        if(pdev->cfg.dma_enable == 1)
+        {
+          /* in slave mode this, is handled by the RxSTSQLvl ISR */
+          ep->xfer_buff += ep->maxpacket; 
+        }        
         USBD_CtlContinueRx (pdev, 
-                            pdata,
-                            MIN(pep->rem_length ,pep->maxpacket));
+                            ep->xfer_buff,
+                            MIN(ep->rem_data_len ,ep->maxpacket));
       }
       else
       {
-        if((pdev->pClass->EP0_RxReady != NULL)&&
-           (pdev->dev_state == USBD_STATE_CONFIGURED))
+        if((pdev->dev.class_cb->EP0_RxReady != NULL)&&
+           (pdev->dev.device_status == USB_OTG_CONFIGURED))
         {
-          pdev->pClass->EP0_RxReady(pdev); 
+          pdev->dev.class_cb->EP0_RxReady(pdev); 
         }
         USBD_CtlSendStatus(pdev);
       }
     }
   }
-  else if((pdev->pClass->DataOut != NULL)&&
-          (pdev->dev_state == USBD_STATE_CONFIGURED))
+  else if((pdev->dev.class_cb->DataOut != NULL)&&
+          (pdev->dev.device_status == USB_OTG_CONFIGURED))
   {
-    pdev->pClass->DataOut(pdev, epnum); 
+    pdev->dev.class_cb->DataOut(pdev, epnum); 
   }  
   return USBD_OK;
 }
@@ -338,131 +258,104 @@ USBD_StatusTypeDef USBD_LL_DataOutStage(USBD_HandleTypeDef *pdev , uint8_t epnum
 * @param  epnum: endpoint index
 * @retval status
 */
-USBD_StatusTypeDef USBD_LL_DataInStage(USBD_HandleTypeDef *pdev ,uint8_t epnum, uint8_t *pdata)
+static uint8_t USBD_DataInStage(USB_OTG_CORE_HANDLE *pdev , uint8_t epnum)
 {
-  USBD_EndpointTypeDef    *pep;
-    
+  USB_OTG_EP *ep;
+  
   if(epnum == 0) 
   {
-    pep = &pdev->ep_in[0];
-    
-    if ( pdev->ep0_state == USBD_EP0_DATA_IN)
+    ep = &pdev->dev.in_ep[0];
+    if ( pdev->dev.device_state == USB_OTG_EP0_DATA_IN)
     {
-      if(pep->rem_length > pep->maxpacket)
+      if(ep->rem_data_len > ep->maxpacket)
       {
-        pep->rem_length -=  pep->maxpacket;
-        
+        ep->rem_data_len -=  ep->maxpacket;
+//note 1
+        if(pdev->cfg.dma_enable == 1)
+        {
+          /* in slave mode this, is handled by the TxFifoEmpty ISR */
+          ep->xfer_buff += ep->maxpacket;
+        }
+//note 1
         USBD_CtlContinueSendData (pdev, 
-                                  pdata, 
-                                  pep->rem_length);
-        
-        /* Prepare endpoint for premature end of transfer */
-        USBD_LL_PrepareReceive (pdev,
-                                0,
-                                NULL,
-                                0);  
+                                  ep->xfer_buff, 
+                                  ep->rem_data_len);
       }
       else
       { /* last packet is MPS multiple, so send ZLP packet */
-        if((pep->total_length % pep->maxpacket == 0) &&
-           (pep->total_length >= pep->maxpacket) &&
-             (pep->total_length < pdev->ep0_data_len ))
+        if((ep->total_data_len % ep->maxpacket == 0) &&
+           (ep->total_data_len >= ep->maxpacket) &&
+             (ep->total_data_len < ep->ctl_data_len ))
         {
           
           USBD_CtlContinueSendData(pdev , NULL, 0);
-          pdev->ep0_data_len = 0;
-          
-        /* Prepare endpoint for premature end of transfer */
-        USBD_LL_PrepareReceive (pdev,
-                                0,
-                                NULL,
-                                0);
+          ep->ctl_data_len = 0;
         }
         else
         {
-          if((pdev->pClass->EP0_TxSent != NULL)&&
-             (pdev->dev_state == USBD_STATE_CONFIGURED))
+          if((pdev->dev.class_cb->EP0_TxSent != NULL)&&
+             (pdev->dev.device_status == USB_OTG_CONFIGURED))
           {
-            pdev->pClass->EP0_TxSent(pdev); 
+            pdev->dev.class_cb->EP0_TxSent(pdev); 
           }          
           USBD_CtlReceiveStatus(pdev);
         }
       }
     }
-    if (pdev->dev_test_mode == 1)
+    if (pdev->dev.test_mode == 1)
     {
       USBD_RunTestMode(pdev); 
-      pdev->dev_test_mode = 0;
+      pdev->dev.test_mode = 0;
     }
   }
-  else if((pdev->pClass->DataIn != NULL)&& 
-          (pdev->dev_state == USBD_STATE_CONFIGURED))
+  else if((pdev->dev.class_cb->DataIn != NULL)&& 
+          (pdev->dev.device_status == USB_OTG_CONFIGURED))
   {
-    pdev->pClass->DataIn(pdev, epnum); 
+    pdev->dev.class_cb->DataIn(pdev, epnum); 
   }  
   return USBD_OK;
 }
 
+
+
+
 /**
-* @brief  USBD_LL_Reset 
+* @brief  USBD_RunTestMode 
+*         Launch test mode process
+* @param  pdev: device instance
+* @retval status
+*/
+static uint8_t  USBD_RunTestMode (USB_OTG_CORE_HANDLE  *pdev) 
+{
+  USB_OTG_WRITE_REG32(&pdev->regs.DREGS->DCTL, SET_TEST_MODE.d32);
+  return USBD_OK;  
+}
+
+/**
+* @brief  USBD_Reset 
 *         Handle Reset event
 * @param  pdev: device instance
 * @retval status
 */
 
-USBD_StatusTypeDef USBD_LL_Reset(USBD_HandleTypeDef  *pdev)
+static uint8_t USBD_Reset(USB_OTG_CORE_HANDLE  *pdev)
 {
   /* Open EP0 OUT */
-  USBD_LL_OpenEP(pdev,
+  DCD_EP_Open(pdev,
               0x00,
-              USBD_EP_TYPE_CTRL,
-              USB_MAX_EP0_SIZE);
-  
-  pdev->ep_out[0].maxpacket = USB_MAX_EP0_SIZE;
+              USB_OTG_MAX_EP0_SIZE,
+              EP_TYPE_CTRL);
   
   /* Open EP0 IN */
-  USBD_LL_OpenEP(pdev,
+  DCD_EP_Open(pdev,
               0x80,
-              USBD_EP_TYPE_CTRL,
-              USB_MAX_EP0_SIZE);
+              USB_OTG_MAX_EP0_SIZE,
+              EP_TYPE_CTRL);
   
-  pdev->ep_in[0].maxpacket = USB_MAX_EP0_SIZE;
-  /* Upon Reset call user call back */
-  pdev->dev_state = USBD_STATE_DEFAULT;
+  /* Upon Reset call usr call back */
+  pdev->dev.device_status = USB_OTG_DEFAULT;
+  pdev->dev.usr_cb->DeviceReset(pdev->cfg.speed);
   
-  if (pdev->pClassData) 
-    pdev->pClass->DeInit(pdev, pdev->dev_config);  
- 
-  
-  return USBD_OK;
-}
-
-
-
-
-/**
-* @brief  USBD_LL_Reset 
-*         Handle Reset event
-* @param  pdev: device instance
-* @retval status
-*/
-USBD_StatusTypeDef USBD_LL_SetSpeed(USBD_HandleTypeDef  *pdev, USBD_SpeedTypeDef speed)
-{
-  pdev->dev_speed = speed;
-  return USBD_OK;
-}
-
-/**
-* @brief  USBD_Suspend 
-*         Handle Suspend event
-* @param  pdev: device instance
-* @retval status
-*/
-
-USBD_StatusTypeDef USBD_LL_Suspend(USBD_HandleTypeDef  *pdev)
-{
-  pdev->dev_old_state =  pdev->dev_state;
-  pdev->dev_state  = USBD_STATE_SUSPENDED;
   return USBD_OK;
 }
 
@@ -473,11 +366,32 @@ USBD_StatusTypeDef USBD_LL_Suspend(USBD_HandleTypeDef  *pdev)
 * @retval status
 */
 
-USBD_StatusTypeDef USBD_LL_Resume(USBD_HandleTypeDef  *pdev)
+static uint8_t USBD_Resume(USB_OTG_CORE_HANDLE  *pdev)
 {
-  pdev->dev_state = pdev->dev_old_state;  
+  /* Upon Resume call usr call back */
+  pdev->dev.usr_cb->DeviceResumed(); 
+  pdev->dev.device_status = pdev->dev.device_old_status;  
+  pdev->dev.device_status = USB_OTG_CONFIGURED;  
   return USBD_OK;
 }
+
+
+/**
+* @brief  USBD_Suspend 
+*         Handle Suspend event
+* @param  pdev: device instance
+* @retval status
+*/
+
+static uint8_t USBD_Suspend(USB_OTG_CORE_HANDLE  *pdev)
+{
+  pdev->dev.device_old_status = pdev->dev.device_status;
+  pdev->dev.device_status  = USB_OTG_SUSPENDED;
+  /* Upon Resume call usr call back */
+  pdev->dev.usr_cb->DeviceSuspended(); 
+  return USBD_OK;
+}
+
 
 /**
 * @brief  USBD_SOF 
@@ -486,15 +400,41 @@ USBD_StatusTypeDef USBD_LL_Resume(USBD_HandleTypeDef  *pdev)
 * @retval status
 */
 
-USBD_StatusTypeDef USBD_LL_SOF(USBD_HandleTypeDef  *pdev)
+static uint8_t USBD_SOF(USB_OTG_CORE_HANDLE  *pdev)
 {
-  if(pdev->dev_state == USBD_STATE_CONFIGURED)
+  if(pdev->dev.class_cb->SOF)
   {
-    if(pdev->pClass->SOF != NULL)
-    {
-      pdev->pClass->SOF(pdev);
-    }
+    pdev->dev.class_cb->SOF(pdev); 
   }
+  return USBD_OK;
+}
+/**
+* @brief  USBD_SetCfg 
+*        Configure device and start the interface
+* @param  pdev: device instance
+* @param  cfgidx: configuration index
+* @retval status
+*/
+
+USBD_Status USBD_SetCfg(USB_OTG_CORE_HANDLE  *pdev, uint8_t cfgidx)
+{
+  pdev->dev.class_cb->Init(pdev, cfgidx); 
+  
+  /* Upon set config call usr call back */
+  pdev->dev.usr_cb->DeviceConfigured();
+  return USBD_OK; 
+}
+
+/**
+* @brief  USBD_ClrCfg 
+*         Clear current configuration
+* @param  pdev: device instance
+* @param  cfgidx: configuration index
+* @retval status: USBD_Status
+*/
+USBD_Status USBD_ClrCfg(USB_OTG_CORE_HANDLE  *pdev, uint8_t cfgidx)
+{
+  pdev->dev.class_cb->DeInit(pdev, cfgidx);   
   return USBD_OK;
 }
 
@@ -504,8 +444,9 @@ USBD_StatusTypeDef USBD_LL_SOF(USBD_HandleTypeDef  *pdev)
 * @param  pdev: device instance
 * @retval status
 */
-USBD_StatusTypeDef USBD_LL_IsoINIncomplete(USBD_HandleTypeDef  *pdev, uint8_t epnum)
+static uint8_t USBD_IsoINIncomplete(USB_OTG_CORE_HANDLE  *pdev)
 {
+  pdev->dev.class_cb->IsoINIncomplete(pdev);   
   return USBD_OK;
 }
 
@@ -515,19 +456,23 @@ USBD_StatusTypeDef USBD_LL_IsoINIncomplete(USBD_HandleTypeDef  *pdev, uint8_t ep
 * @param  pdev: device instance
 * @retval status
 */
-USBD_StatusTypeDef USBD_LL_IsoOUTIncomplete(USBD_HandleTypeDef  *pdev, uint8_t epnum)
+static uint8_t USBD_IsoOUTIncomplete(USB_OTG_CORE_HANDLE  *pdev)
 {
+  pdev->dev.class_cb->IsoOUTIncomplete(pdev);   
   return USBD_OK;
 }
 
+#ifdef VBUS_SENSING_ENABLED
 /**
 * @brief  USBD_DevConnected 
 *         Handle device connection event
 * @param  pdev: device instance
 * @retval status
 */
-USBD_StatusTypeDef USBD_LL_DevConnected(USBD_HandleTypeDef  *pdev)
+static uint8_t USBD_DevConnected(USB_OTG_CORE_HANDLE  *pdev)
 {
+  pdev->dev.usr_cb->DeviceConnected();
+  pdev->dev.connection_status = 1;  
   return USBD_OK;
 }
 
@@ -537,14 +482,14 @@ USBD_StatusTypeDef USBD_LL_DevConnected(USBD_HandleTypeDef  *pdev)
 * @param  pdev: device instance
 * @retval status
 */
-USBD_StatusTypeDef USBD_LL_DevDisconnected(USBD_HandleTypeDef  *pdev)
+static uint8_t USBD_DevDisconnected(USB_OTG_CORE_HANDLE  *pdev)
 {
-  /* Free Class Resources */
-  pdev->dev_state = USBD_STATE_DEFAULT;
-  pdev->pClass->DeInit(pdev, pdev->dev_config);  
-   
+  pdev->dev.usr_cb->DeviceDisconnected();
+  pdev->dev.class_cb->DeInit(pdev, 0);
+  pdev->dev.connection_status = 0;    
   return USBD_OK;
 }
+#endif
 /**
 * @}
 */ 
