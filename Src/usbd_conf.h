@@ -24,7 +24,7 @@
 #define __USBD_CONF__H__
 
 /* Includes ------------------------------------------------------------------*/
-//#include "stm32f4_discovery.h"
+#include "stm32f7xx.h"
 
 #define USBD_CFG_MAX_NUM                1
 #define USBD_ITF_MAX_NUM                1
