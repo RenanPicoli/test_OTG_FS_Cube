@@ -169,15 +169,16 @@ void SysTick_Handler(void)
 {
 }*/
 
-
-void EXTI0_IRQHandler(void)
+//creio não estar usando o EXTI0 pois,
+//de acordo com o manual de ref., o EXTI0 é originado de GPIOs e não de USB
+/*void EXTI0_IRQHandler(void)
 {
   UserButtonPressed = 0x01;
-    /* Clear the EXTI line pending bit */
+     Clear the EXTI line pending bit
   EXTI_ClearITPendingBit(USER_BUTTON_EXTI_LINE);
 
   //Audio_MAL_Play((uint32_t)(&sinebuf2[0]),48); - working
-}
+}*/
 
 void OTG_FS_WKUP_IRQHandler(void)
 {
@@ -190,7 +191,8 @@ void OTG_FS_WKUP_IRQHandler(void)
 	SystemInit();
     USB_OTG_UngateClock(&USB_OTG_dev);
   }
-  EXTI_ClearITPendingBit(EXTI_Line18);
+  //EXTI_ClearITPendingBit(EXTI_Line18);
+  __HAL_USB_OTG_FS_WAKEUP_EXTI_CLEAR_FLAG();
 }
 
 void OTG_FS_IRQHandler(void)

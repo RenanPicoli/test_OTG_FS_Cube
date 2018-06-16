@@ -81,7 +81,7 @@ typedef enum {
   USB_OTG_FAIL
 }USB_OTG_STS;
 
-typedef enum {
+/*typedef enum {
   HC_IDLE = 0,
   HC_XFRC,
   HC_HALTED,
@@ -91,15 +91,18 @@ typedef enum {
   HC_XACTERR,  
   HC_BBLERR,   
   HC_DATATGLERR,  
-}HC_STATUS;
+}HC_STATUS;*/
+#define HC_STATUS USB_OTG_HCStateTypeDef
 
-typedef enum {
+
+/*typedef enum {
   URB_IDLE = 0,
   URB_DONE,
   URB_NOTREADY,
   URB_ERROR,
   URB_STALL
-}URB_STATE;
+}URB_STATE;*/
+#define URB_STATE USB_OTG_URBStateTypeDef
 
 typedef enum {
   CTRL_START = 0,
