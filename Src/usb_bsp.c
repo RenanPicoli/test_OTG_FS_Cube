@@ -101,38 +101,48 @@ void USB_OTG_BSP_Init(USB_OTG_CORE_HANDLE *pdev)
  
  #ifdef USE_USB_OTG_FS 
 
-  RCC_AHB1PeriphClockCmd( RCC_AHB1Periph_GPIOA , ENABLE);  
+  //RCC_AHB1PeriphClockCmd( RCC_AHB1Periph_GPIOA , ENABLE);
+  //RCC->AHB1ENR = (RCC->AHB1ENR)|RCC_AHB1ENR_GPIOAEN_Msk;//equivale à linha de cima
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   
   /* Configure SOF VBUS ID DM DP Pins */
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8  | 
-    GPIO_Pin_9  | 
-      GPIO_Pin_11 | 
-        GPIO_Pin_12;
+  GPIO_InitStructure.Pin = GPIO_PIN_8  |
+    GPIO_PIN_9  | //pulou o ID agora, é configurado mais abaixo
+      GPIO_PIN_11 |
+        GPIO_PIN_12;
   
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL ;
-  GPIO_Init(GPIOA, &GPIO_InitStructure);  
-  
-  GPIO_PinAFConfig(GPIOA,GPIO_PinSource8,GPIO_AF_OTG1_FS) ;
+  GPIO_InitStructure.Speed = GPIO_SPEED_FREQ_VERY_HIGH;//GPIO_Speed_100MHz;
+  GPIO_InitStructure.Mode = GPIO_MODE_AF_PP;//GPIO_Mode_AF;
+  //GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+  //GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL ;
+  GPIO_InitStructure.Pull = GPIO_NOPULL;
+  GPIO_InitStructure.Alternate = GPIO_AF10_OTG_FS;
+
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+/*  GPIO_PinAFConfig(GPIOA,GPIO_PinSource8,GPIO_AF_OTG1_FS) ;
   GPIO_PinAFConfig(GPIOA,GPIO_PinSource9,GPIO_AF_OTG1_FS) ; 
   GPIO_PinAFConfig(GPIOA,GPIO_PinSource11,GPIO_AF_OTG1_FS) ; 
-  GPIO_PinAFConfig(GPIOA,GPIO_PinSource12,GPIO_AF_OTG1_FS) ;
+  GPIO_PinAFConfig(GPIOA,GPIO_PinSource12,GPIO_AF_OTG1_FS) ;*/
   
   /* this for ID line debug */
   
   
-  GPIO_InitStructure.GPIO_Pin =  GPIO_Pin_10;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_OD;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP ;  
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
+  GPIO_InitStructure.Pin =  GPIO_PIN_10;
+  //GPIO_InitStructure.GPIO_OType = GPIO_OType_OD;
+  //GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP ;
+  GPIO_InitStructure.Speed = GPIO_SPEED_FREQ_VERY_HIGH;//GPIO_Speed_100MHz;
+  GPIO_InitStructure.Pull = GPIO_PULLUP;
+  GPIO_InitStructure.Mode = GPIO_MODE_AF_OD;
   GPIO_Init(GPIOA, &GPIO_InitStructure);  
-  GPIO_PinAFConfig(GPIOA,GPIO_PinSource10,GPIO_AF_OTG1_FS) ;   
+  //GPIO_PinAFConfig(GPIOA,GPIO_PinSource10,GPIO_AF_OTG1_FS) ;
 
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG, ENABLE);
-  RCC_AHB2PeriphClockCmd(RCC_AHB2Periph_OTG_FS, ENABLE) ; 
- #else // USE_USB_OTG_HS 
+  //RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG, ENABLE);
+  __HAL_RCC_SYSCFG_CLK_ENABLE();
+  //RCC_AHB2PeriphClockCmd(RCC_AHB2Periph_OTG_FS, ENABLE) ;
+  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+
+  #else // USE_USB_OTG_HS
 
   #ifdef USE_ULPI_PHY // ULPI
   RCC_AHB1PeriphClockCmd( RCC_AHB1Periph_GPIOA | RCC_AHB1Periph_GPIOB | 
@@ -154,15 +164,15 @@ void USB_OTG_BSP_Init(USB_OTG_CORE_HANDLE *pdev)
   GPIO_PinAFConfig(GPIOC,GPIO_PinSource0, GPIO_AF_OTG2_HS) ; // STP
   
   // CLK
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5 ; 
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+  GPIO_InitStructure.Pin= GPIO_Pin_5 ;
+  GPIO_InitStructure.Speed= GPIO_Speed_100MHz;
+  GPIO_InitStructure.Mode = GPIO_Mode_AF;
   GPIO_Init(GPIOA, &GPIO_InitStructure);  
   
   // D0
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3  ; 
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+  GPIO_InitStructure.Pin= GPIO_Pin_3  ;
+  GPIO_InitStructure.Speed= GPIO_Speed_100MHz;
+  GPIO_InitStructure.Mode = GPIO_Mode_AF;
   GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
   GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL ;
   GPIO_Init(GPIOA, &GPIO_InitStructure);  
@@ -170,35 +180,35 @@ void USB_OTG_BSP_Init(USB_OTG_CORE_HANDLE *pdev)
   
   
   // D1 D2 D3 D4 D5 D6 D7
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1  |
+  GPIO_InitStructure.Pin= GPIO_Pin_0 | GPIO_Pin_1  |
     GPIO_Pin_5 | GPIO_Pin_10 | 
       GPIO_Pin_11| GPIO_Pin_12 | 
         GPIO_Pin_13 ;
   
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+  GPIO_InitStructure.Speed= GPIO_Speed_100MHz;
+  GPIO_InitStructure.Mode = GPIO_Mode_AF;
   GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
   GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL ;
   GPIO_Init(GPIOB, &GPIO_InitStructure);  
   
   
   // STP
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0  ;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+  GPIO_InitStructure.Pin= GPIO_Pin_0  ;
+  GPIO_InitStructure.Speed= GPIO_Speed_100MHz;
+  GPIO_InitStructure.Mode = GPIO_Mode_AF;
   GPIO_Init(GPIOC, &GPIO_InitStructure);  
   
   //NXT  
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+  GPIO_InitStructure.Pin= GPIO_Pin_4;
+  GPIO_InitStructure.Speed= GPIO_Speed_100MHz;
+  GPIO_InitStructure.Mode = GPIO_Mode_AF;
   GPIO_Init(GPIOH, &GPIO_InitStructure);  
   
   
   //DIR
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_11 ; 
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+  GPIO_InitStructure.Pin= GPIO_Pin_11 ;
+  GPIO_InitStructure.Speed= GPIO_Speed_100MHz;
+  GPIO_InitStructure.Mode = GPIO_Mode_AF;
   GPIO_Init(GPIOI, &GPIO_InitStructure);  
   
   
@@ -209,13 +219,13 @@ void USB_OTG_BSP_Init(USB_OTG_CORE_HANDLE *pdev)
    #ifdef USE_I2C_PHY    
   RCC_AHB1PeriphClockCmd( RCC_AHB1Periph_GPIOB , ENABLE);  
   /* Configure RESET INTN SCL SDA (Phy/I2C) Pins */
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | 
+  GPIO_InitStructure.Pin= GPIO_Pin_0 |
     GPIO_Pin_1 | 
       GPIO_Pin_10 | 
         GPIO_Pin_11;
   
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+  GPIO_InitStructure.Speed= GPIO_Speed_100MHz;
+  GPIO_InitStructure.Mode = GPIO_Mode_AF;
   GPIO_Init(GPIOB, &GPIO_InitStructure);  
   
   GPIO_PinAFConfig(GPIOB,GPIO_PinSource0,GPIO_AF_OTG2_FS) ; 
@@ -228,13 +238,13 @@ void USB_OTG_BSP_Init(USB_OTG_CORE_HANDLE *pdev)
 
   RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB , ENABLE);
   
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12  | 
+  GPIO_InitStructure.Pin= GPIO_Pin_12  |
     GPIO_Pin_13 |
       GPIO_Pin_14 | 
         GPIO_Pin_15;
   
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+  GPIO_InitStructure.Speed= GPIO_Speed_100MHz;
+  GPIO_InitStructure.Mode = GPIO_Mode_AF;
   GPIO_Init(GPIOB, &GPIO_InitStructure);  
   
   GPIO_PinAFConfig(GPIOB,GPIO_PinSource12, GPIO_AF_OTG2_FS) ; 
@@ -249,7 +259,8 @@ void USB_OTG_BSP_Init(USB_OTG_CORE_HANDLE *pdev)
 
   
   /* enable the PWR clock */
-  RCC_APB1PeriphResetCmd(RCC_APB1Periph_PWR, ENABLE);   
+  //RCC_APB1PeriphResetCmd(RCC_APB1Periph_PWR, ENABLE);
+  __HAL_RCC_PWR_CLK_ENABLE();
   
 #ifdef USB_OTG_FS_LOW_PWR_MGMT_SUPPORT
   EXTI_ClearITPendingBit(EXTI_Line18);
@@ -291,7 +302,8 @@ void USB_OTG_BSP_Init(USB_OTG_CORE_HANDLE *pdev)
   EXTI_ClearITPendingBit(EXTI_Line20);    
 #endif   
 
-  EXTI_ClearITPendingBit(USER_BUTTON_EXTI_LINE);  
+  //nesse projeto, a placa não possui botão algum
+  //EXTI_ClearITPendingBit(USER_BUTTON_EXTI_LINE);
 }
 /**
 * @brief  USB_OTG_BSP_EnableInterrupt
@@ -301,18 +313,24 @@ void USB_OTG_BSP_Init(USB_OTG_CORE_HANDLE *pdev)
 */
 void USB_OTG_BSP_EnableInterrupt(USB_OTG_CORE_HANDLE *pdev)
 {
-  NVIC_InitTypeDef NVIC_InitStructure; 
+  //NVIC_InitTypeDef NVIC_InitStructure;
   
-  NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
+  //NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_1);
+  HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_1);//roda a linha acima, mas faz uma checagem
+
+  IRQn_Type NVIC_IRQChannel;
 #ifdef USE_USB_OTG_HS   
-  NVIC_InitStructure.NVIC_IRQChannel = OTG_HS_IRQn;
+  NVIC_IRQChannel = OTG_HS_IRQn;
 #else
-  NVIC_InitStructure.NVIC_IRQChannel = OTG_FS_IRQn;  
+  NVIC_IRQChannel = OTG_FS_IRQn;
 #endif
-  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
-  NVIC_InitStructure.NVIC_IRQChannelSubPriority = 3;
-  NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-  NVIC_Init(&NVIC_InitStructure);  
+  uint32_t NVIC_IRQChannelPreemptionPriority = 1;
+  uint32_t NVIC_IRQChannelSubPriority = 3;
+  HAL_NVIC_SetPriority(NVIC_IRQChannel,NVIC_IRQChannelPreemptionPriority,NVIC_IRQChannelSubPriority);
+
+  //NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+  //NVIC_Init(&NVIC_InitStructure);
+  HAL_NVIC_EnableIRQ(NVIC_IRQChannel);
 #ifdef USB_OTG_HS_DEDICATED_EP1_ENABLED
   NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
   NVIC_InitStructure.NVIC_IRQChannel = OTG_HS_EP1_OUT_IRQn;
