@@ -134,7 +134,7 @@ void USB_OTG_BSP_Init(USB_OTG_CORE_HANDLE *pdev)
   GPIO_InitStructure.Speed = GPIO_SPEED_FREQ_VERY_HIGH;//GPIO_Speed_100MHz;
   GPIO_InitStructure.Pull = GPIO_PULLUP;
   GPIO_InitStructure.Mode = GPIO_MODE_AF_OD;
-  GPIO_Init(GPIOA, &GPIO_InitStructure);  
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStructure);
   //GPIO_PinAFConfig(GPIOA,GPIO_PinSource10,GPIO_AF_OTG1_FS) ;
 
   //RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG, ENABLE);

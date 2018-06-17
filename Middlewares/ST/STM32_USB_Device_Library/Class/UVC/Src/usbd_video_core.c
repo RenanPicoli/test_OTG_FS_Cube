@@ -320,7 +320,7 @@ static uint8_t  usbd_video_Setup (void  *pdev,
 
     default:
       USBD_CtlError (pdev, req);
-      STM_EVAL_LEDOn(LED4);
+      //STM_EVAL_LEDOn(LED4);
       return USBD_FAIL;
     }
     break;
@@ -354,10 +354,10 @@ static uint8_t  usbd_video_Setup (void  *pdev,
         usbd_video_AltSet = (uint8_t)(req->wValue);
 
         if (usbd_video_AltSet == 1) {
-        	STM_EVAL_LEDOn(LED5);
+        	//STM_EVAL_LEDOn(LED5);
         	play_status = 1;
         } else {
-        	STM_EVAL_LEDOff(LED5);
+        	//STM_EVAL_LEDOff(LED5);
         	DCD_EP_Flush (pdev,USB_ENDPOINT_IN(1));
         	play_status = 0;
         }
@@ -454,7 +454,7 @@ static uint8_t  usbd_video_DataIn (void *pdev, uint8_t epnum)
   }
   
   
-  STM_EVAL_LEDToggle(LED6);
+  //STM_EVAL_LEDToggle(LED6);
   return USBD_OK;
 }
 
