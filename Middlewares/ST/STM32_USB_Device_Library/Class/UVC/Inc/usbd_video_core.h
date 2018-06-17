@@ -8,6 +8,7 @@
 #include "usbd_req.h"
 #include "usbd_desc.h"
 
+#define u8 uint8_t
 //UVC 1.0 uses only 26 first bytes
 typedef struct  _VideoControl{
   u8    bmHint[2];                      // 2

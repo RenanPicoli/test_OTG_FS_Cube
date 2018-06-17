@@ -36,8 +36,9 @@ SOFTWARE.
 /* Private function prototypes */
 /* Private functions */
 
-
+#ifdef __cplusplus
 extern "C"{
+#endif
 #include "usbd_usr.h"
 #include "usbd_desc.h"
 #include "usbd_video_core.h"
@@ -45,8 +46,9 @@ extern "C"{
 #include "jprocess.h"
 
 __ALIGN_BEGIN USB_OTG_CORE_HANDLE  USB_OTG_dev __ALIGN_END;
-
+#ifdef __cplusplus
 }
+#endif
 __IO uint8_t UserButtonPressed = 0;
 
 uint8_t raw_image[IMG_HEIGHT][IMG_WIDTH];
@@ -158,27 +160,8 @@ void draw_circle(int Hcenter, int Vcenter, int radius,uint8_t color)
 void delay_ms(uint32_t ms)
 {
         volatile uint32_t nCount;
-        RCC_ClocksTypeDef RCC_Clocks;
-        RCC_GetClocksFreq (&RCC_Clocks);
-        nCount=(RCC_Clocks.HCLK_Frequency/10000)*ms;
+/*        RCC_ClocksTypeDef RCC_Clocks;
+        RCC_GetClocksFreq (&RCC_Clocks);*/
+        nCount=(HAL_RCC_GetHCLKFreq()/10000)*ms;
         for (; nCount!=0; nCount--);
-}
-
-
-/*
- * Callback used by stm32f4_discovery_audio_codec.c.
- * Refer to stm32f4_discovery_audio_codec.h for more info.
- */
-extern "C" void EVAL_AUDIO_TransferComplete_CallBack(uint32_t pBuffer, uint32_t Size){
-  /* TODO, implement your code here */
-  return;
-}
-
-/*
- * Callback used by stm324xg_eval_audio_codec.c.
- * Refer to stm324xg_eval_audio_codec.h for more info.
- */
-extern "C" uint16_t EVAL_AUDIO_GetSampleCallBack(void){
-  /* TODO, implement your code here */
-  return -1;
 }
